@@ -129,13 +129,47 @@ class SQLParser(object):
         return False, 0
 
     def parse_where(self, parent_tree, parent_node):
+        """
+        Defines production rule WHERE:
+        WHERE -> K_WHERE EXPR
+        """
+        tree, id = self.__create_subtree("where clause")
 
+        is_k_where_parsed, n1 = self.parse_terminal(tree, id, 'K_WHERE')
+        is_expr_parsed, n2 = self.parse_expr(tree, id)
+
+        if is_k_where_parsed and is_expr_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1+n2
+        return False, n1+n2
+
+    def parse_enum(self, parent_tree, parent_node):
+        """
+        Defines production rule ENUM:
+        ENUM -> ID | ID COMMA ID
+        """
+        tree, id = self.__create_subtree("enum")
+
+        is_id_parsed, n1 = self.parse_terminal(tree, id, 'ID')
+        
+        if is_id_parsed:
+            is_comma_parsed, n2 = self.parse_terminal(tree, id, 'COMMA')
+            is_id_parsed, n3 = self.parse_enum(tree, id)
+            if is_comma_parsed and is_id_parsed:
+                parent_tree.paste(parent_node, tree)
+                return True, n1+n2+n3
+            self.__rollback(n2+n3)
+            parent_tree.paste(parent_node, tree)
+            return True, n1
+        return False, n1 
+
+    
 
     def parse(self, tokens):
         self.tokens = filter(lambda x: x[0] != 'WS', tokens)
         self.current_position = 0
         self.parse_tree.create_node("".join(list([x[1] for x in tokens])), 'root')
-        self.parse_expr(self.parse_tree, 'root')  
+        self.parse_enum(self.parse_tree, 'root')  
 
 
     def print_parse_tree(self):
@@ -147,37 +181,40 @@ class SQLParser(object):
 if __name__ == '__main__':
     
     parser = SQLParser()
-    parser.parse([
-        ('NOT', 'NOT'),
-        ('WS', ' '),
-        ('LPAREN', '('),
-        ('ID', 'foo'),
-        ('WS', ' '),
-        ('RL', '>='),
-        ('WS', ' '),
-        ('ID', 'bar'),
-        ('WS', ' '),
-        ('AND', 'AND'),
-        ('WS', ' '),
-        ('NOT', 'NOT'),
-        ('WS', ' '),
-        ('LPAREN', '('),
-        ('ID', 'foo1'),
-        ('WS', ' '),
-        ('RL', '<='),
-        ('WS', ' '),
-        ('ID', 'bar1'),
-        ('WS', ' '),
-        ('OR', 'OR'),
-        ('WS', ' '),
-        ('ID', 'foo2'),
-        ('WS', ' '),
-        ('RL', '<'),
-        ('WS', ' '),
-        ('ID', 'bar2'),
-        ('RPAREN', ')'),
-        ('RPAREN', ')')
-    ])
+    parser.parse([('ID', 'foo'), ('COMMA', ','), ('WS', ' '), ('ID', 'bar')])
+#    parser.parse([
+#        ('K_WHERE', 'WHERE'),
+#        ('WS', ' '),
+#        ('NOT', 'NOT'),
+#        ('WS', ' '),
+#        ('LPAREN', '('),
+#        ('ID', 'foo'),
+#        ('WS', ' '),
+#        ('RL', '>='),
+#        ('WS', ' '),
+#        ('ID', 'bar'),
+#        ('WS', ' '),
+#        ('AND', 'AND'),
+#        ('WS', ' '),
+#        ('NOT', 'NOT'),
+#        ('WS', ' '),
+#        ('LPAREN', '('),
+#        ('ID', 'foo1'),
+#        ('WS', ' '),
+#        ('RL', '<='),
+#        ('WS', ' '),
+#        ('ID', 'bar1'),
+#        ('WS', ' '),
+#        ('OR', 'OR'),
+#        ('WS', ' '),
+#        ('ID', 'foo2'),
+#        ('WS', ' '),
+#        ('RL', '<'),
+#        ('WS', ' '),
+#        ('ID', 'bar2'),
+#        ('RPAREN', ')'),
+#        ('RPAREN', ')')
+#    ])
     #parser.parse('select name from students where age >= 15')
     parser.print_parse_tree()
     
