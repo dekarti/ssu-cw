@@ -73,35 +73,43 @@ class SQLParser(object):
             return True, n1+n2+n3
         return False, n1+n2+n3
 
+    def parse_logical_op(self, parent_tree, parent_node):
+        """
+        Defines production rule L_OP (logical operator):
+        L_OP -> AND | OR
+        """
+        tree, id = self.__create_subtree('logical operator')
+        is_and_parsed, n1 = self.parse_terminal(tree, id, 'AND')
+        if is_and_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1
+        self.__rollback(n1)
+        
+        is_or_parsed, n1 = self.parse_terminal(tree, id, 'OR')
+        if is_or_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1
+        return False, n1
+
     def parse_expr(self, parent_tree, parent_node):
         """
         Defines production rule EXPR:
         EXPR -> COND
               | ( EXPR )
               | NOT EXPR
-              | COND AND EXPR
-              | COND OR EXPR
+              | COND LOGICAL_OP EXPR
         """
         if self.__is_parsed():
             return True, 0
         tree, id = self.__create_subtree('expr')
         is_cond_parsed, n1 = self.parse_cond(tree, id)
-        is_and_parsed, n2 = self.parse_terminal(tree, id, 'AND')
+        is_logical_op_parsed, n2 = self.parse_logical_op(tree, id)
         is_expr_parsed, n3 = self.parse_expr(tree, id)
-        if is_cond_parsed and is_and_parsed and is_expr_parsed:
+        if is_cond_parsed and is_logical_op_parsed and is_expr_parsed:
             parent_tree.paste(parent_node, tree)
             return True, n1+n2+n3
         self.__rollback(n1+n2+n3)
         
-        tree, id = self.__create_subtree('expr')
-        is_cond_parsed, n1 = self.parse_cond(tree, id)
-        is_or_parsed, n2 = self.parse_terminal(tree, id, 'OR')
-        is_expr_parsed, n3 = self.parse_expr(tree, id)
-        if is_cond_parsed and is_or_parsed and is_expr_parsed:
-            parent_tree.paste(parent_node, tree)
-            return True, n1+n2+n3
-        self.__rollback(n1+n2+n3)
-
         tree, id = self.__create_subtree('expr')
         is_lparen_parsed, n1 = self.parse_terminal(tree, id, 'LPAREN')
         is_expr_parsed, n2 = self.parse_expr(tree, id)
@@ -169,7 +177,7 @@ class SQLParser(object):
         self.tokens = filter(lambda x: x[0] != 'WS', tokens)
         self.current_position = 0
         self.parse_tree.create_node("".join(list([x[1] for x in tokens])), 'root')
-        self.parse_enum(self.parse_tree, 'root')  
+        self.parse_where(self.parse_tree, 'root')  
 
 
     def print_parse_tree(self):
@@ -181,40 +189,40 @@ class SQLParser(object):
 if __name__ == '__main__':
     
     parser = SQLParser()
-    parser.parse([('ID', 'foo'), ('COMMA', ','), ('WS', ' '), ('ID', 'bar')])
-#    parser.parse([
-#        ('K_WHERE', 'WHERE'),
-#        ('WS', ' '),
-#        ('NOT', 'NOT'),
-#        ('WS', ' '),
-#        ('LPAREN', '('),
-#        ('ID', 'foo'),
-#        ('WS', ' '),
-#        ('RL', '>='),
-#        ('WS', ' '),
-#        ('ID', 'bar'),
-#        ('WS', ' '),
-#        ('AND', 'AND'),
-#        ('WS', ' '),
-#        ('NOT', 'NOT'),
-#        ('WS', ' '),
-#        ('LPAREN', '('),
-#        ('ID', 'foo1'),
-#        ('WS', ' '),
-#        ('RL', '<='),
-#        ('WS', ' '),
-#        ('ID', 'bar1'),
-#        ('WS', ' '),
-#        ('OR', 'OR'),
-#        ('WS', ' '),
-#        ('ID', 'foo2'),
-#        ('WS', ' '),
-#        ('RL', '<'),
-#        ('WS', ' '),
-#        ('ID', 'bar2'),
-#        ('RPAREN', ')'),
-#        ('RPAREN', ')')
-#    ])
+#    parser.parse([('ID', 'foo'), ('COMMA', ','), ('WS', ' '), ('ID', 'bar')])
+    parser.parse([
+        ('K_WHERE', 'WHERE'),
+        ('WS', ' '),
+        ('NOT', 'NOT'),
+        ('WS', ' '),
+        ('LPAREN', '('),
+        ('ID', 'foo'),
+        ('WS', ' '),
+        ('RL', '>='),
+        ('WS', ' '),
+        ('ID', 'bar'),
+        ('WS', ' '),
+        ('AND', 'AND'),
+        ('WS', ' '),
+        ('NOT', 'NOT'),
+        ('WS', ' '),
+        ('LPAREN', '('),
+        ('ID', 'foo1'),
+        ('WS', ' '),
+        ('RL', '<='),
+        ('WS', ' '),
+        ('ID', 'bar1'),
+        ('WS', ' '),
+        ('OR', 'OR'),
+        ('WS', ' '),
+        ('ID', 'foo2'),
+        ('WS', ' '),
+        ('RL', '<'),
+        ('WS', ' '),
+        ('ID', 'bar2'),
+        ('RPAREN', ')'),
+        ('RPAREN', ')')
+    ])
     #parser.parse('select name from students where age >= 15')
     parser.print_parse_tree()
     
