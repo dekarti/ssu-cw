@@ -154,31 +154,75 @@ class SQLParser(object):
     def parse_enum(self, parent_tree, parent_node):
         """
         Defines production rule ENUM:
-        ENUM -> ID | ID COMMA ID
+        ENUM -> ID | ID COMMA ENUM
         """
-        tree, id = self.__create_subtree("enum")
+        tree, id = self.__create_subtree('enum')
 
+        is_id_parsed, n1 = self.parse_terminal(tree, id, 'ID')
+        is_comma_parsed, n2 = self.parse_terminal(tree, id, 'COMMA')
+        
+        if is_id_parsed and is_comma_parsed:
+            is_enum_parsed, n3 = self.parse_enum(tree, id)
+            if is_enum_parsed:
+                parent_tree.paste(parent_node, tree)
+                return True, n1+n2+n3
+            self.__rollback(n1+n2+n3)
+        self.__rollback(n1+n2)
+
+        tree, id = self.__create_subtree('enum')
         is_id_parsed, n1 = self.parse_terminal(tree, id, 'ID')
         
         if is_id_parsed:
-            is_comma_parsed, n2 = self.parse_terminal(tree, id, 'COMMA')
-            is_id_parsed, n3 = self.parse_enum(tree, id)
-            if is_comma_parsed and is_id_parsed:
-                parent_tree.paste(parent_node, tree)
-                return True, n1+n2+n3
-            self.__rollback(n2+n3)
             parent_tree.paste(parent_node, tree)
             return True, n1
         return False, n1 
 
-    
+    def parse_from(self, parent_tree, parent_node):
+        """
+        Defines production rule FROM:
+        FROM -> K_FROM ENUM
+        """
+        tree, id = self.__create_subtree('from clause')
 
+        is_k_from_parsed, n1 = self.parse_terminal(tree, id, 'K_FROM')
+        is_enum_parsed, n2 = self.parse_enum(tree, id)
+        if is_k_from_parsed and is_enum_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1+n2
+        return False, n1+n2
+
+    def parse_select(self, parent_tree, parent_node):
+        """
+        Define production rule SELECT:
+        SELECT -> K_SELECT ENUM FROM WHERE
+                | K_SELECT ENUM FROM
+        """
+        tree, id = self.__create_subtree("select")
+        is_k_select_parsed, n1 = self.parse_terminal(tree, id, 'K_SELECT')
+        is_enum_parsed, n2 = self.parse_enum(tree, id)
+        is_from_parsed, n3 = self.parse_from(tree, id)
+        is_where_parsed, n4 = self.parse_where(tree, id)
+
+        if is_k_select_parsed and is_enum_parsed and is_from_parsed and is_where_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1+n2+n3+n4
+        self.__rollback(n1+n2+n3+n4)
+        
+        tree, id = self.__create_subtree("select")
+        is_k_select_parsed, n1 = self.parse_terminal(tree, id, 'K_SELECT')
+        is_enum_parsed, n2 = self.parse_enum(tree, id)
+        is_from_parsed, n3 = self.parse_from(tree, id)
+
+        if is_k_select_parsed and  is_enum_parsed and  is_from_parsed:
+            parent_tree.paste(parent_node, tree)
+            return True, n1+n2+n3
+        return False, n1+n2+n3
+    
     def parse(self, tokens):
         self.tokens = filter(lambda x: x[0] != 'WS', tokens)
         self.current_position = 0
         self.parse_tree.create_node("".join(list([x[1] for x in tokens])), 'root')
-        self.parse_where(self.parse_tree, 'root')  
-
+        self.parse_select(self.parse_tree, 'root')  
 
     def print_parse_tree(self):
         print "\r\n\r\n"
@@ -189,8 +233,21 @@ class SQLParser(object):
 if __name__ == '__main__':
     
     parser = SQLParser()
-#    parser.parse([('ID', 'foo'), ('COMMA', ','), ('WS', ' '), ('ID', 'bar')])
     parser.parse([
+        ('K_SELECT', 'SELECT'),
+        ('WS', ' '),
+        ('ID', 'name'),
+        ('COMMA', ','),
+        ('WS', ' '),
+        ('ID', 'age'),
+        ('WS', '\r\n'),
+        ('K_FROM', 'FROM'),
+        ('WS', ' '),
+        ('ID', 'foo'),
+        ('COMMA', ','),
+        ('WS', ' '),
+        ('ID', 'bar'),
+        ('WS', '\r\n'),
         ('K_WHERE', 'WHERE'),
         ('WS', ' '),
         ('NOT', 'NOT'),
